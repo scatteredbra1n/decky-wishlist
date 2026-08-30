@@ -1,6 +1,6 @@
 {
   "name": "decky-wishlist",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Browse your Steam wishlist from the Decky side panel with Steam-style pricing and store links.",
   "type": "module",
   "scripts": {

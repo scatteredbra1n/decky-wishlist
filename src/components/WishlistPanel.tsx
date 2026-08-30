@@ -1,9 +1,10 @@
 import {
   ButtonItem,
-  DropdownItem,
-  DropdownOption,
+  Dropdown,
+  Field,
   PanelSection,
   PanelSectionRow,
+  SingleDropdownOption,
   ToggleField,
 } from "@decky/ui";
 import { callable } from "@decky/api";
@@ -17,13 +18,18 @@ const getWishlist = callable<
   WishlistResponse
 >("get_wishlist");
 
-const SORT_OPTIONS: DropdownOption[] = [
-  { data: "priority", label: "Your priority" },
-  { data: "date", label: "Date added" },
-  { data: "discount", label: "Discount" },
-  { data: "price", label: "Price" },
-  { data: "name", label: "Name" },
+const SORT_MODES: { mode: SortMode; label: string }[] = [
+  { mode: "priority", label: "Your priority" },
+  { mode: "date", label: "Date added" },
+  { mode: "discount", label: "Discount" },
+  { mode: "price", label: "Price" },
+  { mode: "name", label: "Name" },
 ];
+
+const SORT_OPTIONS: SingleDropdownOption[] = SORT_MODES.map((entry, index) => ({
+  data: index,
+  label: entry.label,
+}));
 
 function parsePriceCents(value: string | null | undefined, isFree: boolean): number {
   if (isFree) return 0;
@@ -41,7 +47,9 @@ function sortItems(items: WishlistItem[], mode: SortMode): WishlistItem[] {
     case "date":
       return copy.sort((a, b) => b.date_added - a.date_added);
     case "discount":
-      return copy.sort((a, b) => b.discount_pct - a.discount_pct || a.name.localeCompare(b.name));
+      return copy.sort(
+        (a, b) => b.discount_pct - a.discount_pct || a.name.localeCompare(b.name),
+      );
     case "price":
       return copy.sort((a, b) => {
         const pa = parsePriceCents(a.price, a.is_free);
@@ -63,9 +71,12 @@ export const WishlistPanel: FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>("priority");
+  const [sortIndex, setSortIndex] = useState(0);
   const [onSaleOnly, setOnSaleOnly] = useState(false);
   const [count, setCount] = useState(0);
+
+  const sortMode = SORT_MODES[sortIndex]?.mode ?? "priority";
+  const sortLabel = SORT_MODES[sortIndex]?.label ?? "Your priority";
 
   const load = async (force = false) => {
     setLoading(true);
@@ -107,6 +118,15 @@ export const WishlistPanel: FC = () => {
     [items],
   );
 
+  const onSortChange = (option: SingleDropdownOption) => {
+    const raw = option?.data;
+    const nextIndex = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(nextIndex) || nextIndex < 0 || nextIndex >= SORT_MODES.length) {
+      return;
+    }
+    setSortIndex(nextIndex);
+  };
+
   return (
     <>
       <PanelSection title="Your Wishlist">
@@ -116,23 +136,27 @@ export const WishlistPanel: FC = () => {
               color: "#8f98a0",
               fontSize: "12px",
               marginBottom: "4px",
+              lineHeight: "16px",
             }}
           >
             {loading
               ? "Loading wishlist…"
               : `${visible.length} shown${count ? ` · ${count} total` : ""}${
                   saleCount ? ` · ${saleCount} on sale` : ""
-                }`}
+                } · sorted by ${sortLabel}`}
           </div>
         </PanelSectionRow>
 
         <PanelSectionRow>
-          <DropdownItem
-            label="Sort by"
-            rgOptions={SORT_OPTIONS}
-            selectedOption={sortMode}
-            onChange={(option) => setSortMode(option.data as SortMode)}
-          />
+          <Field label="Sort by" padding="none">
+            <Dropdown
+              rgOptions={SORT_OPTIONS}
+              selectedOption={sortIndex}
+              onChange={onSortChange}
+              menuLabel="Sort by"
+              strDefaultLabel={sortLabel}
+            />
+          </Field>
         </PanelSectionRow>
 
         <PanelSectionRow>
@@ -177,7 +201,7 @@ export const WishlistPanel: FC = () => {
         ) : null}
 
         {visible.map((item) => (
-          <PanelSectionRow key={item.appid}>
+          <PanelSectionRow key={`${item.appid}-${sortMode}`}>
             <WishlistItemRow item={item} />
           </PanelSectionRow>
         ))}
