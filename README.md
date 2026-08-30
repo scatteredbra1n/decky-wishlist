@@ -2,6 +2,8 @@
 
 A [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that shows your Steam wishlist in the Quick Access side panel, styled like Steam’s store UI.
 
+**Current release:** [v0.0.1-alpha](https://github.com/scatteredbra1n/decky-wishlist/releases/tag/v0.0.1-alpha)
+
 ## Features
 
 - Loads the logged-in user’s Steam wishlist from the Deck
@@ -11,11 +13,12 @@ A [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that 
 - Opens the Steam store page for a selected title
 - Works with public wishlists; private wishlists use the local Steam session when available
 
-## Install
+## Install (alpha)
 
 1. Install [Decky Loader](https://decky.xyz) on your Steam Deck.
-2. Download the latest release zip, or build from source (below).
-3. In Decky → Developer → Install plugin from zip, select the zip.
+2. Download `Wishlist-v0.0.1-alpha.zip` from the [Releases](https://github.com/scatteredbra1n/decky-wishlist/releases) page.
+3. In Decky → Developer → **Install plugin from zip**, select the downloaded zip.
+4. Open the Quick Access menu → Decky → **Wishlist**.
 
 ## Develop
 
@@ -25,6 +28,8 @@ pnpm run build
 ```
 
 The built frontend lands in `dist/index.js`. Zip the plugin folder (with `dist/`, `main.py`, `package.json`, `plugin.json`, and `LICENSE`) for installation.
+
+Tagged releases (`v*`) are built by GitHub Actions and published automatically under [Releases](https://github.com/scatteredbra1n/decky-wishlist/releases).
 
 ## How it works
 

@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm run build
+
+      - name: Package plugin zip
+        id: package
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          PLUGIN_DIR="Wishlist"
+          STAGE="$(mktemp -d)/${PLUGIN_DIR}"
+          mkdir -p "${STAGE}/dist" "${STAGE}/assets"
+          cp dist/index.js "${STAGE}/dist/"
+          cp main.py package.json plugin.json LICENSE README.md "${STAGE}/"
+          cp assets/logo.png "${STAGE}/assets/"
+          ZIP_NAME="Wishlist-v${VERSION}.zip"
+          (
+            cd "$(dirname "${STAGE}")"
+            zip -r "${GITHUB_WORKSPACE}/${ZIP_NAME}" "${PLUGIN_DIR}"
+          )
+          echo "zip_name=${ZIP_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          unzip -l "${ZIP_NAME}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Wishlist v${{ steps.package.outputs.version }}
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
+          body: |
+            Alpha build of **Wishlist** for Decky Loader.
+
+            ### Install
+            1. Install [Decky Loader](https://decky.xyz)
+            2. Download `Wishlist-v${{ steps.package.outputs.version }}.zip` from the assets below
+            3. In Steam Quick Access → Decky → Developer → **Install plugin from zip**
+            4. Restart Decky / Steam if the plugin does not appear
+
+            ### Notes
+            - Early alpha — wishlist fetching depends on local Steam userdata and Steam store APIs
+            - Private wishlists need a readable Steam session cookie on the Deck
+          files: |
+            ${{ steps.package.outputs.zip_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
