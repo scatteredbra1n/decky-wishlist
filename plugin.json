@@ -1,0 +1,11 @@
+{
+  "name": "Wishlist",
+  "author": "Josh Chaiken",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["wishlist", "store", "utility"],
+    "description": "Browse your Steam wishlist from the Decky side panel with Steam-style pricing, discounts, and store links.",
+    "image": "https://opengraph.githubassets.com/1/decky-wishlist/decky-wishlist"
+  }
+}
