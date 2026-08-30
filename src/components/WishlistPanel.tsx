@@ -10,6 +10,12 @@ import {
 import { callable } from "@decky/api";
 import { FC, useEffect, useMemo, useState } from "react";
 import { FaSyncAlt } from "react-icons/fa";
+import {
+  getSession,
+  loadPrefs,
+  savePrefs,
+  setSession,
+} from "../persistence";
 import { SortMode, WishlistItem, WishlistResponse } from "../types";
 import { WishlistItemRow } from "./WishlistItem";
 
@@ -67,42 +73,97 @@ function sortItems(items: WishlistItem[], mode: SortMode): WishlistItem[] {
 }
 
 export const WishlistPanel: FC = () => {
-  const [items, setItems] = useState<WishlistItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [sortIndex, setSortIndex] = useState(0);
-  const [onSaleOnly, setOnSaleOnly] = useState(false);
-  const [count, setCount] = useState(0);
+  const [items, setItems] = useState<WishlistItem[]>(() => getSession().items);
+  const [loading, setLoading] = useState(() => !getSession().loadedOnce);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(() => getSession().error);
+  const [message, setMessage] = useState<string | null>(() => getSession().message);
+  const [sortIndex, setSortIndex] = useState(
+    () => loadPrefs(SORT_MODES.length - 1).sortIndex,
+  );
+  const [onSaleOnly, setOnSaleOnly] = useState(
+    () => loadPrefs(SORT_MODES.length - 1).onSaleOnly,
+  );
+  const [count, setCount] = useState(() => getSession().count);
 
   const sortMode = SORT_MODES[sortIndex]?.mode ?? "priority";
   const sortLabel = SORT_MODES[sortIndex]?.label ?? "Your priority";
 
+  useEffect(() => {
+    savePrefs({ sortIndex, onSaleOnly });
+  }, [sortIndex, onSaleOnly]);
+
   const load = async (force = false) => {
-    setLoading(true);
+    const cached = getSession();
+    const hasCachedItems = cached.loadedOnce && cached.items.length > 0;
+    if (!hasCachedItems) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
     setError(null);
-    setMessage(null);
     try {
       const result = await getWishlist("US", "english", force);
       if (!result?.ok) {
-        setItems([]);
-        setCount(0);
-        setError(result?.error || "Failed to load wishlist.");
+        const nextError = result?.error || "Failed to load wishlist.";
+        setError(nextError);
+        setMessage(null);
+        if (!hasCachedItems) {
+          setItems([]);
+          setCount(0);
+          setSession({
+            items: [],
+            count: 0,
+            error: nextError,
+            message: null,
+            loadedOnce: true,
+          });
+        } else {
+          setSession({ error: nextError });
+        }
         return;
       }
-      setItems(result.items || []);
-      setCount(result.count ?? result.items?.length ?? 0);
-      if (result.message) setMessage(result.message);
+
+      const nextItems = result.items || [];
+      const nextCount = result.count ?? nextItems.length;
+      const nextMessage = result.message || null;
+      setItems(nextItems);
+      setCount(nextCount);
+      setMessage(nextMessage);
+      setError(null);
+      setSession({
+        items: nextItems,
+        count: nextCount,
+        error: null,
+        message: nextMessage,
+        loadedOnce: true,
+      });
     } catch (err) {
-      setItems([]);
-      setCount(0);
-      setError(err instanceof Error ? err.message : String(err));
+      const nextError = err instanceof Error ? err.message : String(err);
+      setError(nextError);
+      if (!hasCachedItems) {
+        setItems([]);
+        setCount(0);
+        setSession({
+          items: [],
+          count: 0,
+          error: nextError,
+          message: null,
+          loadedOnce: true,
+        });
+      } else {
+        setSession({ error: nextError });
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
+    // Reopening QAM remounts this panel; restore prefs/session immediately and
+    // only soft-refresh so sort/filter choices stay put.
     void load(false);
   }, []);
 
@@ -127,6 +188,13 @@ export const WishlistPanel: FC = () => {
     setSortIndex(nextIndex);
   };
 
+  const busy = loading || refreshing;
+  const statusText = loading
+    ? "Loading wishlist…"
+    : `${visible.length} shown${count ? ` · ${count} total` : ""}${
+        saleCount ? ` · ${saleCount} on sale` : ""
+      } · sorted by ${sortLabel}${refreshing ? " · refreshing…" : ""}`;
+
   return (
     <>
       <PanelSection title="Your Wishlist">
@@ -139,11 +207,7 @@ export const WishlistPanel: FC = () => {
               lineHeight: "16px",
             }}
           >
-            {loading
-              ? "Loading wishlist…"
-              : `${visible.length} shown${count ? ` · ${count} total` : ""}${
-                  saleCount ? ` · ${saleCount} on sale` : ""
-                } · sorted by ${sortLabel}`}
+            {statusText}
           </div>
         </PanelSectionRow>
 
@@ -168,10 +232,10 @@ export const WishlistPanel: FC = () => {
         </PanelSectionRow>
 
         <PanelSectionRow>
-          <ButtonItem layout="below" onClick={() => void load(true)} disabled={loading}>
+          <ButtonItem layout="below" onClick={() => void load(true)} disabled={busy}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
               <FaSyncAlt />
-              {loading ? "Refreshing…" : "Refresh wishlist"}
+              {busy ? "Refreshing…" : "Refresh wishlist"}
             </span>
           </ButtonItem>
         </PanelSectionRow>
